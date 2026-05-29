@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Water Innovation Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+:root{
+    --bg:#081c34;
+    --card:#0f2a4d;
+    --accent:#ffd60a;
+    --text:#fff;
+}
+
+body{
+    margin:0;
+    font-family:Segoe UI;
+    background:var(--bg);
+    color:var(--text);
+}
+
+/* HEADER */
+.header{
+    padding:15px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#06172b;
+}
+
+.logo{ height:40px; }
+.user{ color:var(--accent); }
+
+/* DASHBOARD */
+.dashboard{ padding:15px; }
+
+.main-card{
+    background:var(--accent);
+    color:#000;
+    padding:20px;
+    border-radius:12px;
+    font-size:22px;
+    font-weight:bold;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:10px;
+    margin-top:10px;
+}
+
+.small-card{
+    background:var(--card);
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+
+/* RECORD CARD */
+.card{
+    background:var(--card);
+    padding:12px;
+    border-radius:10px;
+    margin-bottom:10px;
+}
+
+.delete-btn{
+    background:red;
+    color:white;
+    border:none;
+    padding:5px 10px;
+    border-radius:6px;
+    float:right;
+    cursor:pointer;
+}
+
+/* BUTTON */
+.btn{
+    padding:10px;
+    border:none;
+    background:var(--accent);
+    color:#000;
+    border-radius:8px;
+    cursor:pointer;
+    margin-top:5px;
+}
+
+/* FAB */
+.fab{
+    position:fixed;
+    bottom:70px;
+    right:20px;
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    background:var(--accent);
+    font-size:30px;
+    border:none;
+}
+
+/* NAV */
+.nav{
+    position:fixed;
+    bottom:0;
+    width:100%;
+    background:#06172b;
+    display:flex;
+    justify-content:space-around;
+    padding:10px 0;
+}
+
+.nav button{
+    background:none;
+    border:none;
+    color:white;
+}
+
+/* MODAL */
+.modal{
+    position:fixed;
+    bottom:-100%;
+    width:100%;
+    background:var(--card);
+    padding:20px;
+    transition:0.3s;
+}
+.modal.active{ bottom:0; }
+
+input,select{
+    width:100%;
+    padding:10px;
+    margin:5px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+    <img src="logo_white.png" class="logo">
+    <div class="user">Welcome Admin</div>
+</div>
+
+<div class="dashboard">
+
+    <div class="main-card">
+        Total Pumps: <span id="total">0</span>
+    </div>
+
+    <div class="grid">
+        <div class="small-card">In Stock<br><b id="instock">0</b></div>
+        <div class="small-card">Inbound<br><b id="inbound">0</b></div>
+        <div class="small-card">Outbound<br><b id="outbound">0</b></div>
+        <div class="small-card">Service<br><b id="service">0</b></div>
+    </div>
+
+    <div class="list">
+        <h3>Recent Activity</h3>
+        <div id="records"></div>
+    </div>
+
+</div>
+
+<button class="fab" onclick="openForm()">+</button>
+
+<div class="nav">
+    <button onclick="exportExcel()">Export</button>
+    <button onclick="shareWhatsApp()">WhatsApp</button>
+    <button onclick="sendMail()">Email</button>
+    <input type="file" id="importFile">
+</div>
+
+<!-- FORM -->
+<div class="modal" id="form">
+    <h3>Add Entry</h3>
+
+    <input id="model" placeholder="Pump Model">
+    <input id="qty" type="number" placeholder="Quantity">
+    <input id="date" type="date">
+
+    <select id="type">
+        <option>In Stock</option>
+        <option>Inbound</option>
+        <option>Outbound to Client</option>
+        <option>Service</option>
+    </select>
+
+    <input id="remarks" placeholder="Remarks">
+
+    <button class="btn" onclick="add()">Save</button>
+    <button class="btn" onclick="closeForm()">Cancel</button>
+</div>
+
+<script>
+
+let db;
+let req=indexedDB.open("InventoryDB",1);
+
+req.onupgradeneeded=e=>{
+    db=e.target.result;
+    db.createObjectStore("records",{keyPath:"id",autoIncrement:true});
+};
+
+req.onsuccess=e=>{
+    db=e.target.result;
+    load();
+};
+
+/* FORM */
+function openForm(){ document.getElementById("form").classList.add("active"); }
+function closeForm(){ document.getElementById("form").classList.remove("active"); }
+
+/* ADD */
+function add(){
+
+    let model=document.getElementById("model").value.trim();
+    let qty=parseInt(document.getElementById("qty").value);
+    let date=document.getElementById("date").value;
+    let type=document.getElementById("type").value;
+    let remarks=document.getElementById("remarks").value;
+
+    if(!model || !qty || !date){
+        alert("Fill all fields");
+        return;
+    }
+
+    let tx=db.transaction("records","readwrite");
+
+    tx.objectStore("records").add({
+        model,qty,date,type,remarks,
+        time:new Date().toLocaleTimeString()
+    });
+
+    tx.oncomplete=()=>{
+        load();
+        closeForm();
+
+        // reset
+        document.getElementById("model").value="";
+        document.getElementById("qty").value="";
+        document.getElementById("date").value="";
+        document.getElementById("remarks").value="";
+    };
+}
+
+/* LOAD */
+function load(){
+    let tx=db.transaction("records","readonly");
+    let req=tx.objectStore("records").getAll();
+
+    req.onsuccess=()=>render(req.result);
+}
+
+/* DELETE */
+function del(id){
+    if(!confirm("Delete this entry?")) return;
+
+    let tx=db.transaction("records","readwrite");
+    tx.objectStore("records").delete(id);
+    tx.oncomplete=load;
+}
+
+/* RENDER */
+function render(data){
+
+    let total=0,instock=0,inbound=0,outbound=0,service=0;
+    let modelStock={};
+
+    let container=document.getElementById("records");
+    container.innerHTML="";
+
+    data.slice().reverse().forEach(d=>{
+
+        total+=d.qty;
+
+        if(!modelStock[d.model]) modelStock[d.model]=0;
+
+        if(d.type=="In Stock"){ instock+=d.qty; modelStock[d.model]+=d.qty; }
+        if(d.type=="Inbound"){ inbound+=d.qty; modelStock[d.model]+=d.qty; }
+        if(d.type=="Outbound to Client"){ outbound+=d.qty; modelStock[d.model]-=d.qty; }
+        if(d.type=="Service"){ service+=d.qty; }
+
+        let stockLabel = modelStock[d.model] <= 0 ? " (OUT OF STOCK)" : "";
+
+        container.innerHTML+=`
+        <div class="card">
+            <button class="delete-btn" onclick="del(${d.id})">X</button>
+            <b>${d.model}</b> ${stockLabel}<br>
+            Qty: ${d.qty}<br>
+            ${d.type}<br>
+            ${d.date} ${d.time}
+        </div>`;
+    });
+
+    document.getElementById("total").innerText=total;
+    document.getElementById("instock").innerText=instock;
+    document.getElementById("inbound").innerText=inbound;
+    document.getElementById("outbound").innerText=outbound;
+    document.getElementById("service").innerText=service;
+}
+
+/* EXPORT */
+function exportExcel(){
+    let tx=db.transaction("records","readonly");
+    let req=tx.objectStore("records").getAll();
+
+    req.onsuccess=()=>{
+        let ws=XLSX.utils.json_to_sheet(req.result);
+        let wb=XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb,ws,"Inventory");
+        XLSX.writeFile(wb,"inventory.xlsx");
+    };
+}
+
+/* IMPORT */
+document.getElementById("importFile").addEventListener("change",function(e){
+    let reader=new FileReader();
+
+    reader.onload=function(e){
+        let wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        let json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+        let tx=db.transaction("records","readwrite");
+        let store=tx.objectStore("records");
+
+        json.forEach(j=>store.add(j));
+        tx.oncomplete=load;
+    };
+
+    reader.readAsArrayBuffer(e.target.files[0]);
+});
+
+/* WHATSAPP */
+function shareWhatsApp(){
+    let msg="Inventory Report Generated";
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`);
+}
+
+/* EMAIL */
+function sendMail(){
+    window.location.href="mailto:?subject=Inventory Report&body=Inventory exported successfully.";
+}
+
+</script>
+
+</body>
+</html>

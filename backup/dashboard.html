@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+:root{
+    --bg:#081c34;
+    --card:#0f2a4d;
+    --accent:#ffd60a;
+    --text:#fff;
+}
+
+body{
+    margin:0;
+    font-family:Segoe UI;
+    background:var(--bg);
+    color:var(--text);
+}
+
+/* HEADER */
+.header{
+    padding:15px;
+    display:flex;
+    justify-content:space-between;
+    background:#06172b;
+}
+
+.logo{ height:40px; }
+
+.logout{
+    background:red;
+    color:white;
+    border:none;
+    padding:8px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+/* DASHBOARD */
+.dashboard{ padding:15px; }
+
+.main-card{
+    background:var(--accent);
+    color:#000;
+    padding:20px;
+    border-radius:12px;
+    font-size:20px;
+    font-weight:bold;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:10px;
+    margin-top:10px;
+}
+
+.small-card{
+    background:var(--card);
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+
+/* RECORD */
+.card{
+    background:var(--card);
+    padding:12px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+.delete{
+    float:right;
+    background:red;
+    color:white;
+    border:none;
+}
+
+/* FAB */
+.fab{
+    position:fixed;
+    bottom:70px;
+    right:20px;
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    background:var(--accent);
+    font-size:30px;
+}
+
+/* NAV */
+.nav{
+    position:fixed;
+    bottom:0;
+    width:100%;
+    display:flex;
+    justify-content:space-around;
+    background:#06172b;
+}
+
+/* MODAL */
+.modal{
+    position:fixed;
+    bottom:-100%;
+    width:100%;
+    background:var(--card);
+    padding:20px;
+    transition:0.3s;
+}
+.modal.active{bottom:0;}
+
+input,select{
+    width:100%;
+    padding:10px;
+    margin:5px 0;
+}
+</style>
+
+</head>
+
+<body>
+
+<script>
+// LOGIN CHECK
+if(localStorage.getItem("login")!=="true"){
+    window.location="login.html";
+}
+</script>
+
+<div class="header">
+    <img src="logo/logo_white.png" class="logo">
+    <button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<div class="dashboard">
+
+<div class="main-card">
+Total Pumps: <span id="total">0</span>
+</div>
+
+<div class="grid">
+<div class="small-card">In Stock<br><b id="instock">0</b></div>
+<div class="small-card">Inbound<br><b id="inbound">0</b></div>
+<div class="small-card">Outbound<br><b id="outbound">0</b></div>
+<div class="small-card">Service<br><b id="service">0</b></div>
+</div>
+
+<h3>Records</h3>
+<div id="records"></div>
+
+</div>
+
+<button class="fab" onclick="openForm()">+</button>
+
+<div class="nav">
+<button onclick="exportExcel()">Export</button>
+<button onclick="shareWhatsApp()">WhatsApp</button>
+<button onclick="sendMail()">Email</button>
+<input type="file" id="importFile">
+</div>
+
+<!-- FORM -->
+<div class="modal" id="form">
+<h3>Add Entry</h3>
+
+<input id="model" placeholder="Pump Model">
+<input id="qty" type="number" placeholder="Quantity">
+<input id="date" type="date">
+
+<select id="type">
+<option>In Stock</option>
+<option>Inbound</option>
+<option>Outbound</option>
+<option>Service</option>
+</select>
+
+<button onclick="add()">Save</button>
+<button onclick="closeForm()">Cancel</button>
+</div>
+
+
+
+<script>
+
+let db;
+let req=indexedDB.open("InventoryDB",1);
+
+req.onupgradeneeded=e=>{
+db=e.target.result;
+db.createObjectStore("records",{keyPath:"id",autoIncrement:true});
+};
+
+req.onsuccess=e=>{
+db=e.target.result;
+load();
+};
+
+/* LOGOUT */
+function logout(){
+localStorage.removeItem("login");
+location="login.html";
+}
+
+/* FORM */
+function openForm(){form.classList.add("active");}
+function closeForm(){form.classList.remove("active");}
+
+/* ADD */
+function add(){
+let model=model.value;
+let qty=parseInt(qty.value);
+let date=date.value;
+let type=document.getElementById("type").value;
+
+if(!model||!qty||!date) return alert("Fill fields");
+
+db.transaction("records","readwrite")
+.objectStore("records")
+.add({model,qty,date,type,time:new Date().toLocaleTimeString()});
+
+setTimeout(load,300);
+closeForm();
+}
+
+/* LOAD */
+function load(){
+let tx=db.transaction("records","readonly");
+let req=tx.objectStore("records").getAll();
+req.onsuccess=()=>render(req.result);
+}
+
+/* DELETE */
+function del(id){
+db.transaction("records","readwrite").objectStore("records").delete(id);
+setTimeout(load,300);
+}
+
+/* RENDER */
+function render(data){
+
+let total=0,instock=0,inbound=0,outbound=0,service=0;
+records.innerHTML="";
+
+data.forEach(d=>{
+total+=d.qty;
+
+if(d.type==="In Stock") instock+=d.qty;
+if(d.type==="Inbound") inbound+=d.qty;
+if(d.type==="Outbound") outbound+=d.qty;
+if(d.type==="Service") service+=d.qty;
+
+records.innerHTML+=`
+<div class="card">
+<button class="delete" onclick="del(${d.id})">X</button>
+<b>${d.model}</b><br>
+${d.qty} - ${d.type}<br>
+${d.date} ${d.time}
+</div>`;
+});
+
+document.getElementById("total").innerText=total;
+document.getElementById("instock").innerText=instock;
+document.getElementById("inbound").innerText=inbound;
+document.getElementById("outbound").innerText=outbound;
+document.getElementById("service").innerText=service;
+}
+
+/* EXPORT */
+function exportExcel(){
+let tx=db.transaction("records","readonly");
+let req=tx.objectStore("records").getAll();
+
+req.onsuccess=()=>{
+let ws=XLSX.utils.json_to_sheet(req.result);
+let wb=XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb,ws,"Inventory");
+XLSX.writeFile(wb,"inventory.xlsx");
+};
+}
+
+/* IMPORT */
+importFile.addEventListener("change",e=>{
+let reader=new FileReader();
+reader.onload=e=>{
+let wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+let json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+let tx=db.transaction("records","readwrite");
+let store=tx.objectStore("records");
+
+json.forEach(j=>store.add(j));
+tx.oncomplete=load;
+};
+reader.readAsArrayBuffer(e.target.files[0]);
+});
+
+/* WHATSAPP */
+function shareWhatsApp(){
+window.open(`https://wa.me/?text=Inventory Report`);
+}
+
+/* EMAIL */
+function sendMail(){
+location="mailto:?subject=Inventory&body=Report";
+}
+
+</script>
+
+<script>
+if(localStorage.getItem("isLoggedIn") !== "true"){
+    window.location.href = "login.html";
+}
+
+function logout(){
+    localStorage.removeItem("isLoggedIn");
+    window.location.href = "login.html";
+}
+</script>
+
+</body>
+</html>

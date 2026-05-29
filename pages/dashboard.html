@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+:root{
+    --bg:#081c34;
+    --card:#0f2a4d;
+    --accent:#ffd60a;
+    --text:#fff;
+}
+
+body{
+    margin:0;
+    font-family:Segoe UI;
+    background:var(--bg);
+    color:var(--text);
+}
+
+/* HEADER */
+.header{
+    padding:15px;
+    display:flex;
+    justify-content:space-between;
+    background:#06172b;
+}
+
+.logo{
+    height:35px;
+}
+
+.logout{
+    background:red;
+    border:none;
+    padding:8px 12px;
+    color:white;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+/* DASHBOARD */
+.dashboard{ padding:15px; }
+
+.main{
+    background:var(--accent);
+    color:#000;
+    padding:20px;
+    border-radius:12px;
+    font-size:20px;
+    font-weight:bold;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+    gap:10px;
+    margin-top:10px;
+}
+
+.card{
+    background:var(--card);
+    padding:12px;
+    border-radius:10px;
+}
+
+/* RECORD */
+.record{
+    margin-top:10px;
+    background:var(--card);
+    padding:12px;
+    border-radius:10px;
+}
+
+.delete{
+    float:right;
+    background:red;
+    border:none;
+    color:white;
+    cursor:pointer;
+}
+
+/* FAB */
+.fab{
+    position:fixed;
+    bottom:80px;
+    right:20px;
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    background:var(--accent);
+    font-size:30px;
+    border:none;
+    cursor:pointer;
+}
+
+/* MODAL */
+.modal{
+    position:fixed;
+    bottom:-100%;
+    width:100%;
+    background:var(--card);
+    padding:20px;
+    transition:0.3s;
+}
+.modal.active{bottom:0;}
+
+input,select{
+    width:100%;
+    padding:10px;
+    margin:5px 0;
+}
+</style>
+
+</head>
+
+<body>
+
+
+<img src="logo/logo_white.png" class="logo">
+
+
+<script>
+/* PROTECTION */
+if(localStorage.getItem("auth") !== "true"){
+    location.href = "login.html";
+}
+</script>
+
+<div class="header">
+<h3>Inventory Dashboard</h3>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<div class="dashboard">
+
+
+<div class="main">
+Total Pumps: <span id="total">0</span>
+</div>
+
+<div class="grid">
+<div class="card">In Stock<br><b id="instock">0</b></div>
+<div class="card">Inbound<br><b id="inbound">0</b></div>
+<div class="card">Outbound<br><b id="outbound">0</b></div>
+<div class="card">Service<br><b id="service">0</b></div>
+</div>
+
+<div id="records"></div>
+
+</div>
+
+<button class="fab" onclick="openForm()">+</button>
+
+<div class="modal" id="form">
+<h3>Add Entry</h3>
+<input id="model" placeholder="Model">
+<input id="qty" type="number" placeholder="Qty">
+<input id="date" type="date">
+
+<select id="type">
+<option>In Stock</option>
+<option>Inbound</option>
+<option>Outbound</option>
+<option>Service</option>
+</select>
+
+<button onclick="add()">Save</button> <button onclick="closeForm()">Cancel</button>
+
+</div>
+
+<script>
+let db;
+
+/* DOM REFERENCES (FIXED) */
+const modelInput = document.getElementById("model");
+const qtyInput = document.getElementById("qty");
+const dateInput = document.getElementById("date");
+const typeInput = document.getElementById("type");
+
+const recordsDiv = document.getElementById("records");
+const totalEl = document.getElementById("total");
+
+/* DB INIT */
+const req = indexedDB.open("InventoryDB",1);
+
+req.onupgradeneeded = e=>{
+    db = e.target.result;
+    db.createObjectStore("records",{keyPath:"id",autoIncrement:true});
+};
+
+req.onsuccess = e=>{
+    db = e.target.result;
+    load();
+};
+
+/* LOGOUT */
+function logout(){
+    localStorage.removeItem("auth");
+    location.href="login.html";
+}
+
+/* FORM CONTROL */
+function openForm(){
+    document.getElementById("form").classList.add("active");
+}
+
+function closeForm(){
+    document.getElementById("form").classList.remove("active");
+}
+
+/* ADD RECORD (FIXED) */
+function add(){
+    let model = modelInput.value.trim();
+    let qty = parseInt(qtyInput.value);
+    let date = dateInput.value;
+    let type = typeInput.value;
+
+    if(!model || !qty || !date){
+        alert("Please fill all fields");
+        return;
+    }
+
+    let tx = db.transaction("records","readwrite");
+    tx.objectStore("records").add({
+        model, qty, date, type
+    });
+
+    tx.oncomplete = ()=>{
+        load();
+        closeForm();
+        modelInput.value="";
+        qtyInput.value="";
+        dateInput.value="";
+    };
+}
+
+/* LOAD DATA */
+function load(){
+    let tx = db.transaction("records","readonly");
+    let req = tx.objectStore("records").getAll();
+
+    req.onsuccess = ()=> render(req.result);
+}
+
+/* DELETE */
+function del(id){
+    let tx = db.transaction("records","readwrite");
+    tx.objectStore("records").delete(id);
+    tx.oncomplete = load;
+}
+
+/* RENDER DATA */
+function render(data){
+    let total=0, instock=0, inbound=0, outbound=0, service=0;
+
+    recordsDiv.innerHTML="";
+
+    data.forEach(d=>{
+        total += d.qty;
+
+        if(d.type==="In Stock") instock += d.qty;
+        if(d.type==="Inbound") inbound += d.qty;
+        if(d.type==="Outbound") outbound += d.qty;
+        if(d.type==="Service") service += d.qty;
+
+        recordsDiv.innerHTML += `
+        <div class="record">
+            <button class="delete" onclick="del(${d.id})">X</button>
+            <b>${d.model}</b><br>
+            ${d.qty} - ${d.type}<br>
+            ${d.date}
+        </div>`;
+    });
+
+    totalEl.innerText = total;
+    document.getElementById("instock").innerText = instock;
+    document.getElementById("inbound").innerText = inbound;
+    document.getElementById("outbound").innerText = outbound;
+    document.getElementById("service").innerText = service;
+}
+</script>
+
+</body>
+</html>

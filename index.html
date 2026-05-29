@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Redirecting...</title>
+
+<!-- Fallback Redirect -->
+
+<meta http-equiv="refresh" content="0; url=pages/login.html">
+
+<style>
+body{
+    margin:0;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-family:Segoe UI;
+    background:#081c34;
+    color:#fff;
+}
+.loader{
+    text-align:center;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="loader">
+    <h2>Loading...</h2>
+    <p>Redirecting to Login Page</p>
+</div>
+
+<script>
+// Primary Redirect (recommended)
+window.location.href = "pages/login.html";
+</script>
+
+
+if(localStorage.getItem("auth") === "true"){
+    window.location.href = "pages/dashboard.html";
+} else {
+    window.location.href = "pages/login.html";
+}
+
+</body>
+</html>
+
+

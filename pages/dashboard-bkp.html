@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Dashboard</title>
+
+<!-- XLSX Library -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+:root{
+    --bg:#081c34;
+    --card:#0f2a4d;
+    --accent:#ffd60a;
+    --text:#fff;
+}
+
+body{
+    margin:0;
+    font-family:Segoe UI, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+}
+
+/* HEADER */
+.header{
+    padding:15px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#06172b;
+}
+
+.logo{ height:40px; }
+
+.logout{
+    background:red;
+    color:white;
+    border:none;
+    padding:8px 12px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+/* DASHBOARD */
+.dashboard{ padding:15px; }
+
+.main-card{
+    background:var(--accent);
+    color:#000;
+    padding:20px;
+    border-radius:12px;
+    font-size:20px;
+    font-weight:bold;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:10px;
+    margin-top:10px;
+}
+
+.small-card{
+    background:var(--card);
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+
+/* RECORD */
+.card{
+    background:var(--card);
+    padding:12px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+.delete{
+    float:right;
+    background:red;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+
+/* FAB */
+.fab{
+    position:fixed;
+    bottom:70px;
+    right:20px;
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    background:var(--accent);
+    font-size:30px;
+    border:none;
+    cursor:pointer;
+}
+
+/* NAV */
+.nav{
+    position:fixed;
+    bottom:0;
+    width:100%;
+    display:flex;
+    justify-content:space-around;
+    background:#06172b;
+    padding:10px 0;
+}
+
+.nav button{
+    padding:8px 12px;
+    cursor:pointer;
+}
+
+/* MODAL */
+.modal{
+    position:fixed;
+    bottom:-100%;
+    width:100%;
+    background:var(--card);
+    padding:20px;
+    transition:0.3s;
+}
+.modal.active{bottom:0;}
+
+input,select{
+    width:100%;
+    padding:10px;
+    margin:5px 0;
+}
+</style>
+
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <img src="logo/logo_white.png" class="logo" alt="Logo">
+    <button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard">
+
+<div class="main-card">
+Total Pumps: <span id="total">0</span>
+</div>
+
+<div class="grid">
+<div class="small-card">In Stock<br><b id="instock">0</b></div>
+<div class="small-card">Inbound<br><b id="inbound">0</b></div>
+<div class="small-card">Outbound<br><b id="outbound">0</b></div>
+<div class="small-card">Service<br><b id="service">0</b></div>
+</div>
+
+<h3>Records</h3>
+<div id="records"></div>
+
+</div>
+
+<button class="fab" onclick="openForm()">+</button>
+
+<div class="nav">
+<button onclick="exportExcel()">Export</button>
+<button onclick="shareWhatsApp()">WhatsApp</button>
+<button onclick="sendMail()">Email</button>
+<input type="file" id="importFile">
+</div>
+
+<!-- FORM -->
+<div class="modal" id="form">
+<h3>Add Entry</h3>
+
+<input id="model" placeholder="Pump Model">
+<input id="qty" type="number" placeholder="Quantity">
+<input id="date" type="date">
+
+<select id="type">
+<option>In Stock</option>
+<option>Inbound</option>
+<option>Outbound</option>
+<option>Service</option>
+</select>
+
+<button onclick="addRecord()">Save</button>
+<button onclick="closeForm()">Cancel</button>
+</div>
+
+<script>
+
+
+/* DATABASE */
+let db;
+const request = indexedDB.open("InventoryDB", 1);
+
+request.onupgradeneeded = e => {
+    db = e.target.result;
+    db.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+};
+
+request.onsuccess = e => {
+    db = e.target.result;
+    loadData();
+};
+
+/* LOGOUT */
+function logout(){
+    localStorage.removeItem("login");
+    window.location.href = "login.html";
+}
+
+/* FORM CONTROL */
+function openForm(){
+    document.getElementById("form").classList.add("active");
+}
+
+function closeForm(){
+    document.getElementById("form").classList.remove("active");
+}
+
+/* ADD RECORD */
+function addRecord(){
+
+    const model = document.getElementById("model").value.trim();
+    const qty = parseInt(document.getElementById("qty").value);
+    const date = document.getElementById("date").value;
+    const type = document.getElementById("type").value;
+
+    if(!model || !qty || !date){
+        alert("Please fill all fields");
+        return;
+    }
+
+    const tx = db.transaction("records", "readwrite");
+    tx.objectStore("records").add({
+        model, qty, date, type,
+        time: new Date().toLocaleTimeString()
+    });
+
+    tx.oncomplete = () => {
+        loadData();
+        closeForm();
+    };
+}
+
+/* LOAD DATA */
+function loadData(){
+    const tx = db.transaction("records", "readonly");
+    const req = tx.objectStore("records").getAll();
+
+    req.onsuccess = () => renderData(req.result);
+}
+
+/* DELETE */
+function deleteRecord(id){
+    const tx = db.transaction("records", "readwrite");
+    tx.objectStore("records").delete(id);
+
+    tx.oncomplete = loadData;
+}
+
+/* RENDER */
+function renderData(data){
+
+    let total=0, instock=0, inbound=0, outbound=0, service=0;
+
+    const recordsDiv = document.getElementById("records");
+    recordsDiv.innerHTML = "";
+
+    data.forEach(d => {
+
+        total += d.qty;
+
+        if(d.type === "In Stock") instock += d.qty;
+        if(d.type === "Inbound") inbound += d.qty;
+        if(d.type === "Outbound") outbound += d.qty;
+        if(d.type === "Service") service += d.qty;
+
+        recordsDiv.innerHTML += `
+        <div class="card">
+            <button class="delete" onclick="deleteRecord(${d.id})">X</button>
+            <b>${d.model}</b><br>
+            ${d.qty} - ${d.type}<br>
+            ${d.date} ${d.time}
+        </div>`;
+    });
+
+    document.getElementById("total").innerText = total;
+    document.getElementById("instock").innerText = instock;
+    document.getElementById("inbound").innerText = inbound;
+    document.getElementById("outbound").innerText = outbound;
+    document.getElementById("service").innerText = service;
+}
+
+/* EXPORT */
+function exportExcel(){
+
+    const tx = db.transaction("records","readonly");
+    const req = tx.objectStore("records").getAll();
+
+    req.onsuccess = () => {
+        const ws = XLSX.utils.json_to_sheet(req.result);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+        XLSX.writeFile(wb, "inventory.xlsx");
+    };
+}
+
+/* IMPORT */
+document.getElementById("importFile").addEventListener("change", function(e){
+
+    const reader = new FileReader();
+
+    reader.onload = function(event){
+
+        const wb = XLSX.read(new Uint8Array(event.target.result), {type:'array'});
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+        const tx = db.transaction("records","readwrite");
+        const store = tx.objectStore("records");
+
+        json.forEach(j => store.add(j));
+
+        tx.oncomplete = loadData;
+    };
+
+    reader.readAsArrayBuffer(e.target.files[0]);
+});
+
+/* WHATSAPP */
+function shareWhatsApp(){
+    window.open("https://wa.me/?text=Inventory Report");
+}
+
+/* EMAIL */
+function sendMail(){
+    window.location.href = "mailto:?subject=Inventory Report&body=Attached inventory details.";
+}
+
+</script>
+
+</body>
+</html>
