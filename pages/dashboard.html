@@ -134,6 +134,13 @@ Export Excel
 </button>
 </div>
 
+
+<input type="file" id="importFile" accept=".xlsx,.xls" style="margin-left:10px;">
+<button onclick="importExcel()" style="padding:8px 12px;background:#0f2a4d;color:#fff;border:none;border-radius:6px;cursor:pointer;">
+Import Excel
+</button>
+
+
 <div class="dashboard">
 
 <div class="main">
@@ -297,6 +304,56 @@ function exportExcel(){
         XLSX.writeFile(wb, "inventory.xlsx");
     };
 }
+
+
+function importExcel(){
+    const fileInput = document.getElementById("importFile");
+    const file = fileInput.files[0];
+
+    if(!file){
+        alert("Please select an Excel file");
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e){
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: "array"});
+
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+
+        const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+        if(jsonData.length === 0){
+            alert("Excel is empty");
+            return;
+        }
+
+        let tx = db.transaction("records","readwrite");
+        let store = tx.objectStore("records");
+
+        jsonData.forEach(row=>{
+            store.add({
+                model: row.Model || "",
+                company: row.Company || "",
+                qty: parseInt(row.Quantity) || 0,
+                type: row.Type || "In Stock",
+                date: row.Date || ""
+            });
+        });
+
+        tx.oncomplete = ()=>{
+            alert("Data Imported Successfully");
+            load();
+        };
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+
 </script>
 
 </body>
