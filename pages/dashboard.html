@@ -65,19 +65,30 @@ body{
     border-radius:10px;
 }
 
-.record{
-    margin-top:10px;
-    background:var(--card);
-    padding:12px;
-    border-radius:10px;
+/* TABLE STYLE */
+.table{
+    margin-top:15px;
+    width:100%;
+    border-collapse:collapse;
+}
+
+.table th, .table td{
+    padding:10px;
+    text-align:left;
+    border-bottom:1px solid #1f3d6b;
+}
+
+.table th{
+    background:#06172b;
 }
 
 .delete{
-    float:right;
     background:red;
     border:none;
     color:white;
     cursor:pointer;
+    padding:5px 8px;
+    border-radius:5px;
 }
 
 .fab{
@@ -134,12 +145,10 @@ Export Excel
 </button>
 </div>
 
-
 <input type="file" id="importFile" accept=".xlsx,.xls" style="margin-left:10px;">
 <button onclick="importExcel()" style="padding:8px 12px;background:#0f2a4d;color:#fff;border:none;border-radius:6px;cursor:pointer;">
 Import Excel
 </button>
-
 
 <div class="dashboard">
 
@@ -163,6 +172,7 @@ Total Pumps: <span id="total">0</span>
 <div class="modal" id="form">
 <h3>Add Entry</h3>
 <input id="model" placeholder="Model">
+<input id="serial" placeholder="Dosing Pump Serial Number">
 <input id="company" placeholder="Company Name">
 <input id="qty" type="number" placeholder="Qty">
 <input id="date" type="date">
@@ -182,6 +192,7 @@ Total Pumps: <span id="total">0</span>
 let db;
 
 const modelInput = document.getElementById("model");
+const serialInput = document.getElementById("serial");
 const companyInput = document.getElementById("company");
 const qtyInput = document.getElementById("qty");
 const dateInput = document.getElementById("date");
@@ -217,25 +228,27 @@ function closeForm(){
 
 function add(){
     let model = modelInput.value.trim();
+    let serial = serialInput.value.trim();
     let company = companyInput.value.trim();
     let qty = parseInt(qtyInput.value);
     let date = dateInput.value;
     let type = typeInput.value;
 
-    if(!model || !qty || !date){
+    if(!model || !serial || !qty || !date){
         alert("Please fill all fields");
         return;
     }
 
     let tx = db.transaction("records","readwrite");
     tx.objectStore("records").add({
-        model, company, qty, date, type
+        model, serial, company, qty, date, type
     });
 
     tx.oncomplete = ()=>{
         load();
         closeForm();
         modelInput.value="";
+        serialInput.value="";
         companyInput.value="";
         qtyInput.value="";
         dateInput.value="";
@@ -257,7 +270,17 @@ function del(id){
 function render(data){
     let total=0, instock=0, inbound=0, outbound=0, service=0;
 
-    recordsDiv.innerHTML="";
+    let html = `
+    <table class="table">
+    <tr>
+        <th>Model</th>
+        <th>Serial No</th>
+        <th>Qty</th>
+        <th>Type</th>
+        <th>Company</th>
+        <th>Date</th>
+        <th>Action</th>
+    </tr>`;
 
     data.forEach(d=>{
         total += d.qty;
@@ -267,15 +290,20 @@ function render(data){
         if(d.type==="Outbound") outbound += d.qty;
         if(d.type==="Service") service += d.qty;
 
-        recordsDiv.innerHTML += `
-        <div class="record">
-            <button class="delete" onclick="del(${d.id})">X</button>
-            <b>${d.model}</b><br>
-            ${d.qty} - ${d.type}<br>
-            ${d.type !== "In Stock" ? `<b>Company:</b> ${d.company || "-"}<br>` : ""}
-            <b>Date:</b> ${d.date}
-        </div>`;
+        html += `
+        <tr>
+            <td>${d.model}</td>
+            <td>${d.serial || "-"}</td>
+            <td>${d.qty}</td>
+            <td>${d.type}</td>
+            <td>${d.company || "-"}</td>
+            <td>${d.date}</td>
+            <td><button class="delete" onclick="del(${d.id})">X</button></td>
+        </tr>`;
     });
+
+    html += `</table>`;
+    recordsDiv.innerHTML = html;
 
     totalEl.innerText = total;
     document.getElementById("instock").innerText = instock;
@@ -291,6 +319,7 @@ function exportExcel(){
     req.onsuccess = ()=>{
         let data = req.result.map(d=>({
             Model: d.model,
+            Serial: d.serial || "",
             Company: d.company || "",
             Quantity: d.qty,
             Type: d.type,
@@ -304,7 +333,6 @@ function exportExcel(){
         XLSX.writeFile(wb, "inventory.xlsx");
     };
 }
-
 
 function importExcel(){
     const fileInput = document.getElementById("importFile");
@@ -326,17 +354,13 @@ function importExcel(){
 
         const jsonData = XLSX.utils.sheet_to_json(sheet);
 
-        if(jsonData.length === 0){
-            alert("Excel is empty");
-            return;
-        }
-
         let tx = db.transaction("records","readwrite");
         let store = tx.objectStore("records");
 
         jsonData.forEach(row=>{
             store.add({
                 model: row.Model || "",
+                serial: row.Serial || "",
                 company: row.Company || "",
                 qty: parseInt(row.Quantity) || 0,
                 type: row.Type || "In Stock",
@@ -352,7 +376,6 @@ function importExcel(){
 
     reader.readAsArrayBuffer(file);
 }
-    
 </script>
 
 </body>
