@@ -129,6 +129,129 @@ input,select{
 if(localStorage.getItem("auth") !== "true"){
     location.href = "login.html";
 }
+
+
+
+/* ✅ GLOBAL IMPROVEMENTS */
+*{
+    box-sizing: border-box;
+}
+
+img{
+    max-width: 100%;
+}
+
+/* ✅ HEADER RESPONSIVE */
+.header{
+    flex-wrap: wrap;
+    gap:10px;
+}
+
+.header h3{
+    font-size:18px;
+}
+
+/* ✅ BUTTON & INPUT MOBILE FRIENDLY */
+button{
+    touch-action: manipulation;
+}
+
+input, select{
+    font-size:16px;
+}
+
+/* ✅ TABLE RESPONSIVE (SCROLL ON MOBILE) */
+#records{
+    overflow-x:auto;
+}
+
+.table{
+    min-width:700px;
+}
+
+/* ✅ FAB BUTTON RESPONSIVE */
+.fab{
+    width:55px;
+    height:55px;
+    font-size:26px;
+}
+
+/* ============================= */
+/* 📱 MOBILE (<= 600px) */
+/* ============================= */
+@media (max-width:600px){
+
+    .header{
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .logo{
+        height:28px;
+    }
+
+    .dashboard{
+        padding:10px;
+    }
+
+    .main{
+        font-size:16px;
+        padding:15px;
+    }
+
+    .grid{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .card{
+        font-size:14px;
+        padding:10px;
+    }
+
+    .fab{
+        bottom:70px;
+        right:15px;
+    }
+
+    .modal{
+        padding:15px;
+    }
+}
+
+/* ============================= */
+/* 📱 TABLET (601px – 1024px) */
+/* ============================= */
+@media (min-width:601px) and (max-width:1024px){
+
+    .grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .main{
+        font-size:18px;
+    }
+}
+
+/* ============================= */
+/* 💻 LARGE DESKTOP (>1200px) */
+/* ============================= */
+@media (min-width:1200px){
+
+    .dashboard{
+        max-width:1200px;
+        margin:auto;
+    }
+
+    .grid{
+        grid-template-columns:repeat(4,1fr);
+    }
+}
+
+
+
+
+
+
 </script>
 
 <div class="header">
